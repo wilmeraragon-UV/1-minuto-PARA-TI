@@ -1,0 +1,66 @@
+name: Deploy static content to Pages
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: 'pages'
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js (v20)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar dependencias con compatibilidad
+        run: npm install --legacy-peer-deps
+
+      - name: Compilar aplicación estática
+        run: npm run build
+
+      - name: Crear 404.html y desactivar Jekyll (.nojekyll)
+        run: |
+          cp ./dist/index.html ./dist/404.html || true
+          touch ./dist/.nojekyll
+
+      # 1. Despliegue automático a rama gh-pages (funciona sin configuración manual en GitHub)
+      - name: Desplegar en rama gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          force_orphan: true
+
+      # 2. Despliegue directo en GitHub Pages si está habilitado
+      - name: Configurar GitHub Pages
+        continue-on-error: true
+        uses: actions/configure-pages@v5
+
+      - name: Subir artefacto de Pages
+        continue-on-error: true
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './dist'
+
+      - name: Desplegar en GitHub Pages
+        continue-on-error: true
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+
